@@ -5,4 +5,6 @@
 
 # Timeline:
 * 3/29: Proposal Due
+* 4/3: Contact PBOT and Bikeshare
+* 4/5: Meet with @kbott
 * 5/10: Presentations
