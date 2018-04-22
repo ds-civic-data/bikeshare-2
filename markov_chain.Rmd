@@ -1,0 +1,26 @@
+---
+title: "Markov Chain"
+author: "Zeki Kazan"
+date: "4/22/2018"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+library(readr)
+library(markovchain)
+full_trips <- read_csv("data/full_trips.csv")
+```
+
+```{r}
+props <- full_trips %>%
+  select(3,8) %>%
+  group_by(StartHub) %>%
+  filter(!is.na(StartHub),!is.na(EndHub)) %>%
+  mutate(tot = n()) %>%
+  group_by(StartHub,EndHub) %>%
+  summarize(prop = n()/min(tot)) %>%
+  spread(key = "EndHub", value = "prop")
+
+props  %>%
+  replace_na
+```
