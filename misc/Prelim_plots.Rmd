@@ -1,0 +1,39 @@
+---
+title: "Prelim_plots"
+author: "Canyon"
+date: "4/21/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+trips_rain <- read_csv("~/R-stuff/Project_stuff/trips_rain.csv")
+```
+
+```{r}
+trips_rain <- trips_rain %>% 
+  filter(RouteID != 3113184)
+trips_rain %>%
+  group_by(daily_total) %>%
+  summarise(total_dist = sum(Distance_Miles, na.rm = T)/n()) %>%
+  ggplot(aes(x = daily_total, y = total_dist)) +
+  geom_point() + 
+  ylim(0,3) +
+  geom_smooth(method = "lm")
+
+trips_rain %>%
+  group_by(daily_total) %>%
+  summarise(trip_avg = n()/n_distinct(StartDate)) %>%
+  ggplot(aes(x = daily_total, y = trip_avg)) +
+  geom_point() + 
+  geom_smooth(method = "lm")
+```
+
+```{r}
+temp <- trips_rain %>%
+  group_by(daily_total) %>%
+  summarise(trip_avg = n()/n_distinct(StartDate))
+  m1 <- lm(trip_avg ~ daily_total, data = temp)
+  summary(m1)
+```

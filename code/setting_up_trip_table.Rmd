@@ -1,0 +1,85 @@
+---
+title: "proj_data_2"
+author: "Canyon"
+date: "4/20/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+full_trips <- read_csv("~/R-stuff/Project_stuff/full_trips.csv")
+library(jsonlite)
+station_json <- fromJSON("http://biketownpdx.socialbicycles.com/opendata/station_information.json")
+```
+
+```{r}
+stations <- data.frame(station_json[["data"]][["stations"]][["station_id"]], station_json[["data"]][["stations"]][["station_id"]], station_json[["data"]][["stations"]][["lon"]],station_json[["data"]][["stations"]][["lat"]], station_json[["data"]][["stations"]][["name"]], station_json[["data"]][["stations"]][["name"]])
+
+names(stations) <-c("start_id", "end_id", "lon", "lat", "StartHub", "EndHub")
+
+stations$StartHub <- as.character(stations$StartHub)
+stations$EndHub <- as.character(stations$EndHub)
+
+stations[13, 5] <- "SE Taylor at Chavez"
+stations[13, 6] <- "SE Taylor at Chavez"
+stations[62, 5] <- "NW 22nd at LoveJoy"
+stations[62, 6] <- "NW 22nd at LoveJoy"
+
+station_end <- stations %>% 
+  select(EndHub, end_id)
+
+station_start <- stations %>% 
+  select(StartHub, start_id)
+
+write_csv(stations, "~/R-stuff/bikeshare-2/data/stations.csv")
+```
+
+```{r}
+full_trips_unfree <- full_trips %>% 
+  select(StartHub, EndHub) %>%
+  filter(!((is.na(StartHub)) | (is.na(EndHub)))) 
+  
+
+n_distinct(full_trips_unfree$StartHub)
+n_distinct(full_trips_unfree$EndHub)
+n_distinct(stations$StartHub)
+```
+
+```{r}
+full_trips_unfree <- full_join(station_end, full_trips_unfree) %>%
+  full_join(station_start) %>%
+  filter(!(is.na(StartHub) | is.na(EndHub) | is.na(start_id) | is.na(end_id)))
+  
+
+n_distinct(full_trips_unfree$StartHub)
+n_distinct(full_trips_unfree$EndHub)
+```
+
+```{r}
+trip_table <- full_trips_unfree %>%
+  group_by(start_id, end_id) %>%
+  summarise(count = n()) %>%
+  spread(key = end_id, value = count)
+
+write_csv(trip_table, "~/R-stuff/bikeshare-2/data/trip_freqs.csv")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
