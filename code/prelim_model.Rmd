@@ -1,0 +1,182 @@
+---
+title: "Preliminary Model"
+author: "Zeki Kazan"
+date: "5/6/2018"
+output: github_document
+---
+
+```{r, include=FALSE}
+#Data/Packages Loading
+library(lubridate)
+library(tidyverse)
+library(readr)
+library(broom)
+library(formattable)
+setwd("/home/kazanz/bikeshare-2")
+trips_rain <- read_csv("data/trips_rain.csv")
+```
+
+Pre-modeling Setup
+```{r}
+trips_plus <- trips_rain %>%
+  
+  #Add variables for Day of Week, Season
+  mutate(DayOfWeek = factor(wday(StartDate)),
+         Season = if_else(month(StartDate) %in% c(6, 7, 8), "Summer", if_else(month(StartDate) %in% c(9, 10, 11), "Autumn", if_else(month(StartDate) %in% c(12, 1, 2), "Winter", "Spring"))),
+          DayOfWeek = recode_factor(DayOfWeek, `1` = "Sunday", `2` = "Monday", `3` = "Tuesday", `4` = "Wednesday", `5` = "Thursday", `6` = "Friday", `7` = "Saturday")) %>%
+  
+  
+  #Recode RentalAccessPath
+  mutate(RentalAccessPath = if_else(RentalAccessPath %in% c("admin","keypad_phone_number","unknown","web"), "other", RentalAccessPath),
+         RentalAccessPath = factor(RentalAccessPath)) %>%
+  
+  #Change duration to minutes
+  mutate(Length_sec = seconds(Duration),
+         Length_sec = substr(Length_sec,1,nchar(Length_sec)-0),
+         Length_min = as.numeric(Length_sec)/60) %>%
+  
+  #Miscelaneous other stuff
+  filter(!is.na(Duration), !is.na(Distance_Miles)) %>%
+  select(2,6,7,16,18,20:24,26) %>%
+  rename(Rainfall = rainfall)
+
+#Change ommitted dummies
+trips_plus <- within(trips_plus, RentalAccessPath <- relevel(RentalAccessPath, ref = "other"))
+trips_plus <- within(trips_plus, DayOfWeek <- relevel(DayOfWeek, ref = "Wednesday"))
+```
+
+Filtering
+```{r}
+trips_filtered <- trips_plus %>%
+  #Choose time of day to analyze
+  filter(hour >= 0, hour <= 23) %>%
+  #Choose dates to analyze
+  filter(date(StartDate) >= ymd("2016-07-19"), date(StartDate) <= ymd("2018-03-31"))
+```
+
+Model 1 (Nonaggregated):
+Predicting Distance Traveled (in miles) and Length of Trip (in minutes)
+```{r}
+#Choose to regress on Length_min or Distance_Miles
+#Choose predictors from: Rainfall, DayOfWeek, Season, PaymentPlan, RentalAccessPath, More???
+m <- lm(Distance_Miles ~ Rainfall + DayOfWeek + Season + PaymentPlan + RentalAccessPath, data = trips_filtered)
+
+summary(m)
+
+#Create Output table (requires broom package)
+output_table <- tidy(m) %>%
+  rename(Predictor = "term") %>%
+  select(1,2,5) %>%
+  slice(-1) %>%
+  mutate(Effect = if_else(estimate > 0, "Positive", "Negative")) %>%
+  mutate(Significance = if_else(p.value < .01, "Very Significant", if_else(p.value < .05, "Significant", if_else(p.value < .1, "Somewhat Significant", "Not Significant")))) %>%
+  select(-2,-3)
+
+#Make Output Table Look Fancy (requires formattable package)
+formattable(output_table, list(
+  Effect = formatter(
+    "span",
+    style = x ~ style(color = ifelse(x == "Negative" , "red", "green")),
+    x ~ icontext(ifelse(x == "Negative", "arrow-down", "arrow-up"), x)),
+  Significance = formatter(
+    "span",
+    style = x ~ style(color = ifelse(x %in% c("Very Significant","Significant") , "blue", ifelse(x == "Somewhat Significant" , "brown", "black"))))))
+
+
+#Function that takes in values for each of the variables and outputs a prediction for the dependent variable
+prediction <- function(valRain = 0, valDay = "Wednesday", valSeas = "Autumn", valPaym = "Casual", valPath = "other") {
+
+  #Set elements of vect based on inputs 
+  vect = c(1,valRain,0,0,0,0,0,0,0,0,0,0,0,0,0)
+  vect[3]<-if_else(valDay == "Sunday", 1, 0)
+  vect[4]<-if_else(valSeas == "Spring", 1, 0)
+  vect[5]<-if_else(valSeas == "Summer", 1, 0)
+  vect[6]<-if_else(valSeas == "Winter", 1, 0)
+  vect[7]<-if_else(valPaym == "Subscriber", 1, 0)
+  vect[8]<-if_else(valPath == "keypad", 1, 0)
+  vect[9]<-if_else(valPath == "keypad_rfid_card", 1, 0)
+  vect[10]<-if_else(valPath == "mobile", 1, 0)
+  vect[11]<-if_else(valDay == "Monday", 1, 0)
+  vect[12]<-if_else(valDay == "Tuesday", 1, 0)
+  vect[13]<-if_else(valDay == "Thursday", 1, 0)
+  vect[14]<-if_else(valDay == "Friday", 1, 0)
+  vect[15]<-if_else(valDay == "Saturday", 1, 0)
+  
+  term = c("(Intercept)", "Rainfall","DayOfWeekSunday", "SeasonSpring", "SeasonSummer", "SeasonWinter", "PaymentPlanSubscriber", "RentalAccessPathkeypad" , "RentalAccessPathkeypad_rfid_card", "RentalAccessPathmobile", "DayOfWeekMonday", "DayOfWeekTuesday", "DayOfWeekThursday", "DayOfWeekFriday", "DayOfWeekSaturday")
+  
+  #Calculate prediction
+  formattable(data_frame(term) %>%
+  left_join(tidy(m), by = c("term" = "term")) %>%
+  select(1,2) %>%
+  mutate(values = vect) %>%
+  filter(!is.na(estimate)) %>%
+  mutate(n1 = estimate*values) %>%
+  summarise(prediction = sum(n1)))
+}
+
+#An example of how the function works
+prediction(valRain = 1,valDay = "Saturday",valSeas = "Autumn", valPaym = "Casual", valPath = "keypad")
+```
+
+Model 2 (Aggregated):
+Predicting average distance traveled (in miles), average length of trip (in minutes), or number of trips per day.
+```{r}
+trips_filtered_more <- trips_filtered %>%
+  group_by(StartDate) %>%
+  summarise(avg_dist = mean(Distance_Miles), avg_leng = mean(Length_min), num_trips = n(), Rainfall = mean(daily_total), DayOfWeek = first(DayOfWeek), Season = first(Season))
+#Choose to regress on avg_dist, avg_leng, or num_trips
+#Choose predictors from: Rainfall, DayOfWeek, Season, More???
+m1 <- lm(num_trips ~ Rainfall + DayOfWeek + Season, data = trips_filtered_more)
+
+summary(m1)
+
+#Create Output table (requires broom package)
+output_table <- tidy(m1) %>%
+  rename(Predictor = "term") %>%
+  select(1,2,5) %>%
+  slice(-1) %>%
+  mutate(Effect = if_else(estimate > 0, "Positive", "Negative")) %>%
+  mutate(Significance = if_else(p.value < .01, "Very Significant", if_else(p.value < .05, "Significant", if_else(p.value < .1, "Somewhat Significant", "Not Significant")))) %>%
+  select(-2,-3)
+
+#Make Output Table Look Fancy (requires formattable package)
+formattable(output_table, list(
+  Effect = formatter(
+    "span",
+    style = x ~ style(color = ifelse(x == "Negative" , "red", "green")),
+    x ~ icontext(ifelse(x == "Negative", "arrow-down", "arrow-up"), x)),
+  Significance = formatter(
+    "span",
+    style = x ~ style(color = ifelse(x %in% c("Very Significant","Significant") , "blue", ifelse(x == "Somewhat Significant" , "brown", "black"))))))
+
+
+#Function that takes in values for each of the variables and outputs a prediction for the dependent variable
+prediction <- function(valRain = 0, valDay = "Wednesday", valSeas = "Autumn") {
+
+  #Set elements of vect based on inputs 
+  vect = c(1,valRain,0,0,0,0,0,0,0,0,0,0,0,0,0)
+  vect[3]<-if_else(valDay == "Sunday", 1, 0)
+  vect[4]<-if_else(valSeas == "Spring", 1, 0)
+  vect[5]<-if_else(valSeas == "Summer", 1, 0)
+  vect[6]<-if_else(valSeas == "Winter", 1, 0)
+  vect[11]<-if_else(valDay == "Monday", 1, 0)
+  vect[12]<-if_else(valDay == "Tuesday", 1, 0)
+  vect[13]<-if_else(valDay == "Thursday", 1, 0)
+  vect[14]<-if_else(valDay == "Friday", 1, 0)
+  vect[15]<-if_else(valDay == "Saturday", 1, 0)
+  
+  term = c("(Intercept)", "Rainfall","DayOfWeekSunday", "SeasonSpring", "SeasonSummer", "SeasonWinter", "PaymentPlanSubscriber", "RentalAccessPathkeypad" , "RentalAccessPathkeypad_rfid_card", "RentalAccessPathmobile", "DayOfWeekMonday", "DayOfWeekTuesday", "DayOfWeekThursday", "DayOfWeekFriday", "DayOfWeekSaturday")
+  
+  #Calculate prediction
+  formattable(data_frame(term) %>%
+  left_join(tidy(m), by = c("term" = "term")) %>%
+  select(1,2) %>%
+  mutate(values = vect) %>%
+  filter(!is.na(estimate)) %>%
+  mutate(n1 = estimate*values) %>%
+  summarise(prediction = sum(n1)))
+}
+
+#An example of how the function works
+prediction(valRain = 1, valDay = "Tuesday", valSeas = "Spring")
+```
