@@ -1,8 +1,8 @@
 library(tidyverse)
 library(lubridate)
 
-full_trips <- read_csv("~/R-stuff/Project_stuff/full_trips.csv")
-rain_fall <- read.table("~/R-stuff/Project_stuff/rain.txt", sep = "")
+full_trips <- read_csv("~/R-stuff/bikeshare-2/raw_data/full_trips.csv")
+rain_fall <- read.table("~/R-stuff/bikeshare-2/raw_data/rain.txt", sep = "")
 names(rain_fall) <- as.character(c("StartDate", "daily_total", 0:23))
 
 rain_fall_gathered <- rain_fall %>%

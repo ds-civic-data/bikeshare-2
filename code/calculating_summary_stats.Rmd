@@ -1,0 +1,48 @@
+---
+title: "sum_stats"
+author: "Canyon"
+date: "4/24/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(leaflet)
+knitr::opts_chunk$set(echo = TRUE)
+trips <- read.csv("~/R-stuff/bikeshare-2/data/trips_temp_rain.csv")
+```
+
+```{r}
+top_stations <- trips %>% 
+  filter(!is.na(StartHub)) %>%
+  group_by(StartHub) %>%
+  summarise(tot = n(), lat = mean(StartLatitude, na.rm = T), lon = mean(StartLongitude, na.rm = T)) %>%
+  arrange(desc(tot)) %>%
+  head(10)
+```
+
+```{r}
+m <- leaflet() %>%
+  addProviderTiles(providers$Stamen.Terrain) %>%
+  addCircleMarkers(lng=top_stations$lon, lat=top_stations$lat, radius = sqrt(top_stations$tot)/10, opacity = 1, color = "orange")
+m  # Print the map
+```
+```{r}
+top_days <- trips %>%
+  filter(!is.na(StartDate) & !is.na(PaymentPlan)) %>%
+  group_by(StartDate) %>%
+  summarise(total = n()) 
+
+top_days %>% 
+  ggplot(aes(x = StartDate, y = total)) + 
+  geom_line()
+```
+
+
+
+
+
+
+
+
+

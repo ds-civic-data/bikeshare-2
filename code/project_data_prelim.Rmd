@@ -8,8 +8,27 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
-
+library(jsonlite)
 ```
+
+```{r}
+station_json <- fromJSON("http://biketownpdx.socialbicycles.com/opendata/station_information.json")
+stations  <- data.frame(station_json[["data"]][["stations"]][["station_id"]], station_json[["data"]][["stations"]][["lon"]],station_json[["data"]][["stations"]][["lat"]], station_json[["data"]][["stations"]][["name"]])
+
+names(stations) <-c("id", "lon", "lat", "name")
+stations$name <- as.character(stations$name)
+
+stations[13, 4] <- "SE Taylor at Chavez"
+
+stations[62, 4] <- "NW 22nd at LoveJoy"
+
+stations <- stations %>%
+  mutate(num_id = as.numeric(substr(id, 5,8)))
+
+write_csv(stations, "~/R-stuff/bikeshare-2/data/stations.csv")
+```
+
+
 
 ```{r}
 full_trips <- rbind(read_csv("~/Project_stuff/PublicTripData/2016_07.csv"), read_csv("~/Project_stuff/PublicTripData/2016_08.csv"), read_csv("~/Project_stuff/PublicTripData/2016_09.csv"), read_csv("~/Project_stuff/PublicTripData/2016_10.csv"), read_csv("~/Project_stuff/PublicTripData/2016_11.csv"), read_csv("~/Project_stuff/PublicTripData/2016_12.csv"), read_csv("~/Project_stuff/PublicTripData/2017_01.csv"), read_csv("~/Project_stuff/PublicTripData/2017_02.csv"), read_csv("~/Project_stuff/PublicTripData/2017_03.csv"), read_csv("~/Project_stuff/PublicTripData/2017_04.csv"), read_csv("~/Project_stuff/PublicTripData/2017_05.csv"), read_csv("~/Project_stuff/PublicTripData/2017_06.csv"), read_csv("~/Project_stuff/PublicTripData/2017_07.csv"), read_csv("~/Project_stuff/PublicTripData/2017_08.csv"), read_csv("~/Project_stuff/PublicTripData/2017_09.csv"), read_csv("~/Project_stuff/PublicTripData/2017_10.csv"), read_csv("~/Project_stuff/PublicTripData/2017_11.csv"), read_csv("~/Project_stuff/PublicTripData/2017_12.csv"), read_csv("~/Project_stuff/PublicTripData/2018_01.csv"), read_csv("~/Project_stuff/PublicTripData/2017_02.csv"), read_csv("~/Project_stuff/PublicTripData/2017_03.csv"))
@@ -18,5 +37,5 @@ full_trips <- rbind(read_csv("~/Project_stuff/PublicTripData/2016_07.csv"), read
 
 ```{r}
 write_csv(full_trips, "~/R-stuff/bikeshare-2/data/full_trips.csv")
-
+write_csv(stations, "~/R-stuff/bikeshare-2/data/stations.csv")
 ```

@@ -8,7 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
-full_trips <- read_csv("~/R-stuff/Project_stuff/full_trips.csv")
+full_trips <- read_csv("~/R-stuff/bikeshare-2/raw_data/full_trips.csv")
 library(jsonlite)
 station_json <- fromJSON("http://biketownpdx.socialbicycles.com/opendata/station_information.json")
 ```
@@ -32,7 +32,7 @@ station_end <- stations %>%
 station_start <- stations %>% 
   select(StartHub, start_id)
 
-write_csv(stations, "~/R-stuff/bikeshare-2/data/stations.csv")
+
 ```
 
 ```{r}
@@ -62,10 +62,45 @@ trip_table <- full_trips_unfree %>%
   summarise(count = n()) %>%
   spread(key = end_id, value = count)
 
+trip_table[is.na(trip_table)] <- 0
+
 write_csv(trip_table, "~/R-stuff/bikeshare-2/data/trip_freqs.csv")
 ```
 
+```{r}
+x <- as.matrix(trip_table[1:118, 2:119])
 
+rowSums(x)
+
+trans <- t(scale(x, center = F, 
+               scale = colSums(x)))
+```
+
+```{r}
+trip_table_raw <- full_trips_unfree %>%
+  group_by(start_id, end_id) %>%
+  summarise(count = n())
+
+write_csv(trip_table_raw, "~/R-stuff/bikeshare-2/data/raw_trips.csv")
+```
+
+```{r}
+station_status <- fromJSON("http://biketownpdx.socialbicycles.com/opendata/station_status.json")
+
+status <- data.frame(station_status[["data"]][["stations"]][["station_id"]], station_status[["data"]][["stations"]][["num_bikes_available"]], station_status[["data"]][["stations"]][["num_docks_available"]])
+
+names(status) <- c("hub", "aval", "dock")
+
+status  <- status %>% 
+  filter(hub %in% trip_table$start_id)
+```
+
+```{r}
+status$aval
+
+
+(c(status$aval) %*% (trans %^% 100)) - (c(status$aval) %*% (trans %^% 200))
+```
 
 
 

@@ -8,7 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
-trips_rain <- read_csv("~/R-stuff/Project_stuff/trips_rain.csv")
+trips_rain2 <- read.csv("~/R-stuff/bikeshare-2/data/trips_temp_rain.csv")
 ```
 
 ```{r}
@@ -22,18 +22,42 @@ trips_rain %>%
   ylim(0,3) +
   geom_smooth(method = "lm")
 
-trips_rain %>%
-  group_by(daily_total) %>%
-  summarise(trip_avg = n()/n_distinct(StartDate)) %>%
-  ggplot(aes(x = daily_total, y = trip_avg)) +
+trips_rain2 %>%
+  filter(!(is.na(PaymentPlan))) %>%
+  group_by(TAVG, PaymentPlan) %>%
+  summarise(trip_avg = sum(Distance_Miles)/n_distinct(StartDate)) %>%
+  ggplot(aes(x = TAVG, y = trip_avg, col = PaymentPlan)) +
   geom_point() + 
   geom_smooth(method = "lm")
 ```
 
 ```{r}
-temp <- trips_rain %>%
-  group_by(daily_total) %>%
-  summarise(trip_avg = n()/n_distinct(StartDate))
-  m1 <- lm(trip_avg ~ daily_total, data = temp)
+temp <- trips_temp_rain %>%
+  group_by(TAVG) %>%
+  summarise(trip_avg = sum(Distance_Miles)/n_distinct(StartDate))
+  m1 <- lm(trip_avg ~ TAVG, data = temp)
   summary(m1)
 ```
+
+```{r}
+temp2 <- trips_rain %>%
+  mutate(big_rain = if_else(daily_total > 100, 1, 0)) %>%
+  group_by(TAVG, big_rain) %>%
+  summarise(trip_avg = n()/n_distinct(StartDate))
+  m1 <- lm(trip_avg ~ TAVG + big_rain, data = temp2)
+  summary(m1)
+```
+
+```{r}
+temp3 <- trips_rain2 %>%
+  group_by(StartDate) %>%
+  summarise(daily_total = mean(daily_total, na.rm = T), tot_dist = sum(Distance_Miles, na.rm = T), avg_temp = mean(TAVG, na.rm = T))
+m2 <- lm(tot_dist ~ avg_temp, data = temp3)
+summary(m2)
+```
+
+
+
+
+
+

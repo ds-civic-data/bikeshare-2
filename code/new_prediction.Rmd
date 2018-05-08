@@ -1,0 +1,98 @@
+---
+title: "model_models"
+author: "Canyon"
+date: "5/8/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(jsonlite)
+raw_counts <- read_csv("~/R-stuff/bikeshare-2/data/raw_trips.csv")
+full_trips <- read_csv("~/R-stuff/bikeshare-2/data/trips_temp_rain.csv") %>%
+  mutate(DayOfWeek = format(factor(wday(StartDate)), format = "%a")) 
+
+json_dist <- fromJSON("http://biketownpdx.socialbicycles.com/opendata/station_status.json")
+stations <- read_csv("~/R-stuff/bikeshare-2/data/stations.csv") 
+```
+
+```{r}
+stations$StartHub <- as.character(stations$StartHub)
+stations$EndHub <- as.character(stations$EndHub)
+
+stations[13, 5] <- "SE Taylor at Chavez"
+stations[13, 6] <- "SE Taylor at Chavez"
+stations[62, 5] <- "NW 22nd at LoveJoy"
+stations[62, 6] <- "NW 22nd at LoveJoy"
+
+station_end <- stations %>% 
+  select(EndHub, end_id)
+
+station_start <- stations %>% 
+  select(StartHub, start_id)
+
+full_trips <- full_join(station_end, full_trips) %>%
+  full_join(station_start) %>%
+  filter(!(is.na(StartHub) | is.na(EndHub) | is.na(start_id) | is.na(end_id)))
+
+```
+
+```{r}
+temp_dist <- data_frame(json_dist[["data"]][["stations"]][["station_id"]], json_dist[["data"]][["stations"]][["num_bikes_available"]], json_dist[["data"]][["stations"]][["num_docks_available"]])
+
+names(temp_dist) <- c("id", "aval", "empty")
+
+distribtion <- inner_join(stations, temp_dist)
+```
+
+```{r}
+filter_trips <- function(time, Date, temp) {
+  DOW <- if_else(wday(Date) %in% c(1,6,7), 1, 0)
+  new_trips <- full_trips %>% 
+    select(StartDate, hour, DayOfWeek, daily_total, Distance_Miles, 
+           TAVG, TMAX, TMIN, start_id, end_id) %>% 
+    mutate(wday_group = if_else(DayOfWeek %in% c(1,6,7), 1, 0)) %>%
+    mutate(month = format(StartDate, format = "%m")) %>%
+    filter(hour > (time - 2) & 
+             hour < (time + 2) & 
+             temp > (TAVG - 10) & 
+             temp < (TAVG + 10) & 
+             DOW == wday_group & 
+             StartDate > (Date - 40) & 
+             StartDate < (Date + 40)) 
+
+  return(new_trips)
+}
+  
+tst <- filter_trips(16, full_trips$StartDate[33000], full_trips$TAVG[33000])
+```
+
+```{r}
+make_prop <- function(trips) {
+  trips_counts <- trips %>%
+    select(start_id, end_id) %>%
+    group_by(start_id, end_id) %>%
+    summarise(count = n()) %>%
+    ungroup() %>%
+    mutate(prop = count/sum(count))
+}
+
+tst2 <- make_prop(tst)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
