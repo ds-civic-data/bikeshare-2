@@ -30,8 +30,8 @@ trips_plus <- trips_rain %>%
   summarise(avg_dist = mean(Distance_Miles), avg_leng = mean(Length_min), num_trips = n(), Rainfall = mean(daily_total), DayOfWeek = first(DayOfWeek), Season = first(Season))
 
 #Change ommitted dummies
-trips_plus <- within(trips_plus, RentalAccessPath <- relevel(RentalAccessPath, ref = "other"))
-trips_plus <- within(trips_plus, DayOfWeek <- relevel(DayOfWeek, ref = "Wednesday"))
+#trips_plus <- within(trips_plus, RentalAccessPath <- relevel(RentalAccessPath, ref = "other"))
+#trips_plus <- within(trips_plus, DayOfWeek <- relevel(DayOfWeek, ref = "Wednesday"))
 
 
 
@@ -68,7 +68,7 @@ ui <- fluidPage(
     # Where the prediciton and table will go
     mainPanel(
       #plotOutput("prediction"),
-      tableOutput("prediction_table")
+      formattableOutput("prediction_table")
     )
   )
 )
@@ -99,14 +99,15 @@ server <- function(input, output) {
     select(-2,-3)
   
   # actual output of table
-  output$prediction_table <- renderDataTable({renderFormattable(output_table, list(
-    Effect = formatter("span",
-                       style = x ~ style(color = ifelse(x == "Negative" , "red", "green")),
-                       x ~ icontext(ifelse(x == "Negative", "arrow-down", "arrow-up"), x)),
-    Significance = formatter(
-      "span",
-      style = x ~ style(color = ifelse(x %in% c("Very Significant","Significant"), "blue", 
-                                       ifelse(x == "Somewhat Significant" , "brown", "black"))))))
+  output$prediction_table <- renderFormattable({
+    formattable(output_table, list(
+      Effect = formatter("span",
+                         style = x ~ style(color = ifelse(x == "Negative" , "red", "green")),
+                         x ~ icontext(ifelse(x == "Negative", "arrow-down", "arrow-up"), x)),
+      Significance = formatter(
+        "span",
+        style = x ~ style(color = ifelse(x %in% c("Very Significant","Significant"), "blue", 
+                                         ifelse(x == "Somewhat Significant" , "brown", "black"))))))
   })
 }
 
