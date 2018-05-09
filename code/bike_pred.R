@@ -1,12 +1,4 @@
----
-title: "model_models"
-author: "Canyon"
-date: "5/8/2018"
-output: html_document
----
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(jsonlite)
 library(lubridate)
@@ -16,9 +8,7 @@ full_trips <- read_csv("~/R-stuff/bikeshare-2/data/trips_temp_rain.csv") %>%
 
 json_dist <- fromJSON("http://biketownpdx.socialbicycles.com/opendata/station_status.json")
 stations <- read_csv("~/R-stuff/bikeshare-2/data/stations.csv") 
-```
 
-```{r}
 # Editing Stations to be joinable
 stations$StartHub <- as.character(stations$StartHub)
 stations$EndHub <- as.character(stations$EndHub)
@@ -38,9 +28,6 @@ full_trips <- full_join(station_end, full_trips) %>%
   full_join(station_start) %>%
   filter(!(is.na(StartHub) | is.na(EndHub) | is.na(start_id) | is.na(end_id)))
 
-```
-
-```{r}
 # Putting current distribution into data frame
 temp_dist <- data_frame(json_dist[["data"]][["stations"]][["station_id"]], json_dist[["data"]][["stations"]][["num_bikes_available"]], json_dist[["data"]][["stations"]][["num_docks_available"]])
 
@@ -52,22 +39,21 @@ stations2 <- stations %>%
 names(stations2) <- c("id", "lon", "lat", "name")
 
 distribtion <- inner_join(stations2, temp_dist)
-```
 
-```{r}
+
 # Function to filter trips to only include trips taken under 'similar' conditions (weather, season, day of wekk, time)
 filter_trips <- function(time, date, temp) {
   date <- ymd(date)
   DOW <- if_else(wday(date) %in% c(1,6,7), 1, 0)
   Dtseason <- if_else(month(date) %in% c(6, 7, 8), "Summer", if_else(month(date) %in% c(9, 10, 11), "Autumn", if_else(month(date) %in% c(12, 1, 2), "Winter", "Spring")))
-                      
+  
   new_trips <- full_trips %>% 
     select(StartDate, hour, DayOfWeek, daily_total, Distance_Miles, 
            TAVG, TMAX, TMIN, start_id, end_id, rainfall) %>%
     mutate(wday_group = if_else(DayOfWeek %in% c(1,6,7), 1, 0), 
            Season = if_else(month(StartDate) %in% c(6, 7, 8), "Summer",
-                    if_else(month(StartDate) %in% c(9, 10, 11), "Autumn",
-                    if_else(month(StartDate) %in% c(12, 1, 2), "Winter", "Spring")))) %>%
+                            if_else(month(StartDate) %in% c(9, 10, 11), "Autumn",
+                                    if_else(month(StartDate) %in% c(12, 1, 2), "Winter", "Spring")))) %>%
     mutate(month = format(StartDate, format = "%m")) %>%
     filter(hour > (time - 2) & 
              hour < (time + 2) & 
@@ -75,14 +61,12 @@ filter_trips <- function(time, date, temp) {
              temp < (TAVG + 10) & 
              DOW == wday_group & 
              Dtseason == Season) 
-
+  
   return(new_trips)
 }
-  
 
-```
 
-```{r}
+
 # Function to calculate trip proportions. Gives dataframe with rows for each start-end combination found in filtered data. Then divides by the sum of those counts to find proportions.
 
 make_prop <- function(trips) {
@@ -93,9 +77,7 @@ make_prop <- function(trips) {
     ungroup() %>%
     mutate(prop = count/sum(count))
 }
-```
 
-```{r}
 # Creates model for number of trips per hour based on filtered data set. Takes temp, rain, time, day of week as predictors
 make_model <- function(trip) {
   model_data <- trip %>% group_by(hour, StartDate) %>%
@@ -110,9 +92,7 @@ make_model <- function(trip) {
   m <- lm(trips ~ tmax + tmin + daily_rain + wd^2 + hour^2, data = model_data)
   return(m)
 }
-```
 
-```{r}
 # Uses model from last function to predict the number of trips over a period of hours.
 
 make_trip_pred <- function(num_hours, model, tmax, tmin, daily_rain, wd, hour) {
@@ -128,9 +108,6 @@ make_trip_pred <- function(num_hours, model, tmax, tmin, daily_rain, wd, hour) {
 
 
 
-```
-
-```{r}
 # Combines previous functions into one that given parameters, gives back a total number of predicted trips
 full_predict_trips <- function(hour, date, tmax, tmin, rain, num_hours) {
   filtered <- filter_trips(hour, ymd(date), ((tmin+tmax)/2))
@@ -141,9 +118,6 @@ full_predict_trips <- function(hour, date, tmax, tmin, rain, num_hours) {
 }
 
 
-```
-
-```{r}
 # Puts everything together  into one function. Outputs a dataset with each station's lat/long, the predicted change, and the distribution pulled from JSON file.
 pred_distribution <- function(hour, date, tmax, tmin, rain, num_hours) {
   filtered <- filter_trips(hour, ymd(date), ((tmin+tmax)/2))
@@ -164,18 +138,12 @@ pred_distribution <- function(hour, date, tmax, tmin, rain, num_hours) {
     select(start_id, diff)
   
   names(trips) <- c("id", "diff")
-
+  
   final <- inner_join(trips, distribtion) %>%
     mutate(predicted = aval + diff)
   return(final)
 }
 
-```
-
-```{r}
-pred_distribution(hour = 19, date = "2018-05-9", tmax = 80, tmin = 60, rain = 0, num_hours =  3) %>%
-  arrange(predicted)
-```
 
 
 

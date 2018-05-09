@@ -6,6 +6,9 @@ trip_counts <- raw_counts  %>%
   group_by(start_id) %>%
   summarise(sum(count))
 
+
+# This file was mostly just testing so I won't comment it. Much of what was successful is also found in
+# the shiny.R file
 stations <- stations %>%
   select(start_id, lon, lat, StartHub)
 
