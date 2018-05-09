@@ -82,13 +82,13 @@ ui <- fluidPage(
                   choices = list("Length_min", "Distance_Miles", "num_trips")),
       # Day of week selection
       selectInput(inputId = "day", label = "Select Day of the WeekL",
-                  choices = list("Monday", "Tuesday", "Thursday", "Friday", "Saturday")),
+                  choices = list("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")),
       # Enter amount of rainfall
       numericInput(inputId = "rainfall", label = "Select Level of Rainfall (.01 inch)",
                   1, min = 0, max = 100),
       # Season Selection
       selectInput(inputId = "Season", label = "Select Season:",
-                  choices = list("Spring", "Summer", "Winter"))
+                  choices = list("Spring", "Summer", "Autumn", "Winter"))
     ),
     # Where the output goes
     mainPanel(
