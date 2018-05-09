@@ -1,8 +1,8 @@
 library(shiny)
 library(shinydashboard)
-
 library(leaflet)
 library(tidyverse)
+source("~/R-stuff/bikeshare-2/code/bike_pred.R")
 stations <- read_csv("~/R-stuff/bikeshare-2/data/stations.csv")
 raw_counts <- read_csv("~/R-stuff/bikeshare-2/data/raw_trips.csv")
 trip_counts <- raw_counts  %>%
@@ -133,7 +133,9 @@ server <- function(input, output, session) {
     
     
   })
-  output$predmap <- renderLeaflet(m)
+  output$predmap <- renderLeaflet(leaflet() %>% 
+                                    addProviderTiles(providers$Stamen.Terrain) %>%
+                                    setView(lng = -122.6765, lat= 45.5231, zoom = 12))
   
   observeEvent(input$predict1, {
     pred_data <- pred_distribution(input$hour, input$date, input$maxtemp, input$mintemp,input$rain, 
@@ -141,11 +143,12 @@ server <- function(input, output, session) {
     
     proxy2 <- leafletProxy("predmap") %>% 
       addProviderTiles(providers$Stamen.Terrain) %>% 
+      clearMarkers() %>%
       addCircleMarkers(lng=pred_data$lon, 
                        lat=pred_data$lat,
-                       radius = 5, 
+                       radius = sqrt(20*((abs(pred_data$diff) + 1))), 
                        stroke = F,
-                       fillOpacity = (abs(pred_data$diff)/2) + .2, 
+                       fillOpacity = .6,
                        color = if_else(pred_data$diff > 0, "green", "red"),
                        popup = paste("Predicted Change in Bikes: ", pred_data$diff))
     

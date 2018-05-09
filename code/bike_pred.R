@@ -26,7 +26,9 @@ station_start <- stations %>%
 
 full_trips <- full_join(station_end, full_trips) %>%
   full_join(station_start) %>%
-  filter(!(is.na(StartHub) | is.na(EndHub) | is.na(start_id) | is.na(end_id)))
+  filter(!(is.na(start_id) & is.na(end_id))) %>%
+  mutate(start_id = if_else(is.na(start_id), "free", start_id), 
+         end_id = if_else(is.na(end_id), "free", end_id))
 
 # Putting current distribution into data frame
 temp_dist <- data_frame(json_dist[["data"]][["stations"]][["station_id"]], json_dist[["data"]][["stations"]][["num_bikes_available"]], json_dist[["data"]][["stations"]][["num_docks_available"]])

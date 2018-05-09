@@ -168,18 +168,11 @@ shinyApp(ui, server)
 
 
 
-make_pred_map <- function(map, dta) {
-  map <- map %>% 
+
+  map <- leaflet() %>% 
     addProviderTiles(providers$Stamen.Terrain) %>% 
-    addCircleMarkers(lng=dta$lon, 
-                     lat=dta$lat,
-                     radius = 5, 
-                     stroke = F,
-                     fillOpacity = (abs(dta$diff)/2) + .2, 
-                     color = if_else(dta$diff > 0, "green", "red"),
-                     popup = paste("Predicted Change in Bikes: ", dta$diff))
-  return(map)
-}
+    setView(lat = 45.5231)
+
 
   
   
