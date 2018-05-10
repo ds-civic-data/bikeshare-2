@@ -3,82 +3,9 @@ library(shinydashboard)
 library(leaflet)
 library(tidyverse)
 source("~/R-stuff/bikeshare-2/code/bike_pred.R")
-stations <- read_csv("~/R-stuff/bikeshare-2/data/stations.csv")
-raw_counts <- read_csv("~/R-stuff/bikeshare-2/data/raw_trips.csv")
-trip_counts <- raw_counts  %>%
-  group_by(start_id) %>%
-  summarise(sum(count))
+source("~/R-stuff/bikeshare-2/code/shiny_map_functs.R")
+source("~/R-stuff/bikeshare-2/code/shiny_pred_functs.R")
 
-stations <- stations %>%
-  select(start_id, lon, lat, StartHub)
-
-names(stations) <- c("id", "lon", "lat", "name")
-
-
-names(trip_counts) <- c("id", "total")
-stations_counts <- inner_join(stations, trip_counts)
-
-# Creating basic map without lines, just circle markers at each station.
-map_basic <- leaflet() %>%
-  addProviderTiles(providers$Stamen.Terrain) %>%
-  addCircleMarkers(lng=stations_counts$lon, 
-                   lat=stations_counts$lat, 
-                   radius = sqrt(stations_counts$total)/10, 
-                   fillOpacity = .6, 
-                   color = "orange", 
-                   layerId = stations_counts$id, 
-                   stroke = F, 
-                   label = stations_counts$name) 
-
-# Function to construct top outgoing stations for a given hub
-make_top_stations <- function(hub, n) {
-  top_stations <-  raw_counts %>%
-    filter(start_id == hub, end_id  != hub) %>%
-    arrange(desc(count)) %>%
-    head(n) %>% 
-    inner_join(stations, 
-               by = c("start_id" = "id")) %>%
-    inner_join(stations, 
-               by = c("end_id" = "id"), 
-               suffix = c("_start", "_end")) %>%
-    mutate(color = "maroon")
-  return(top_stations)
-}
-# Function to construct top outgoing stations for a given hub
-
-make_in_top_stations <- function(hub, n) {
-  top_stations <-  raw_counts %>%
-    filter(end_id == hub, start_id  != hub) %>%
-    arrange(desc(count)) %>%
-    head(n) %>% 
-    inner_join(stations, 
-               by = c("start_id" = "id")) %>%
-    inner_join(stations, 
-               by = c("end_id" = "id"), 
-               suffix = c("_start", "_end")) %>%
-    mutate(color = "navy")
-  return(top_stations)
-}
-
-# Function that adds lines between stations. Represents relative frequency with line weigth  
-make_line_map <- function(map, dta, n) {
-  i <- 0
-  while (i <= n) {
-    map <- map %>%
-      addPolylines(lng = c(dta$lon_start[i], 
-                           dta$lon_end[i]), 
-                   lat = c(dta$lat_start[i], 
-                           dta$lat_end[i]),
-                   label = paste("Destination: ", 
-                                 dta$name_end[i], ", Total Trips: ", as.character(dta$count[i])),
-                   weight = n*(dta$count[i]/sum(dta$count)), 
-                   color = dta$color, 
-                   opacity = 1,
-                   group = "line")
-    i = i + 1
-  }
-  return(map)
-}
 
 # Shiny app starts here
 
@@ -86,7 +13,10 @@ ui <- dashboardPage(
   dashboardHeader(title = "Biketown"),
   dashboardSidebar(sidebarMenu(
     menuItem("Explore", tabName = "explore"),
-    menuItem("Predict", tabName = "predict"))),
+    menuItem("Predict", tabName = "predict"),
+    menuItem("Models", tabName = "models", icon = icon("bar-chart-o")),
+    menuItem("Predictions", tabName = "preds", icon = icon("th")),
+    menuItem("Residual Plot", tabName = "resid", icon = icon("dashboard")))),
   dashboardBody(tabItems(tabItem(tabName = "explore", 
                                  fluidRow(column(width = 9,
                                                  leafletOutput("mymap", height = "700px")),
@@ -98,13 +28,65 @@ ui <- dashboardPage(
                                  fluidRow(column(width = 9, leafletOutput("predmap", height = "700px")),
                                           column(width = 3, box(width = "100px", 
                                                                 sliderInput("predtime", "Hours ahead to predict", 1, 16, 1),
-                                                                sliderInput("mintemp", "Minimum Temperature (F)", 0, 100, 50),
-                                                                sliderInput("maxtemp", "Maximum Temperature (F)", 0, 100, 50),
+                                                                sliderInput("mintemp", "Minimum Temperature (F)", 20, 100, 50),
+                                                                sliderInput("maxtemp", "Maximum Temperature (F)", 20, 100, 50),
                                                                 sliderInput("rain", "Rainfall (1/100 inches)", 0, 300, 0),
-                                                                sliderInput("hour", "Hour of day (24H time)", 1, 23, 12),
+                                                                sliderInput("hour", "Hour of day (24H time)", 0, 23, 12),
                                                                 dateInput("date", "Date", format = "yyyy-mm-dd", startview = "month", weekstart = 7,
                                                                           language = "en", width = NULL),
-                                                                actionButton("predict1", "Predict")))))))
+                                                                actionButton("predict1", "Predict")
+                                          )
+                                          )
+                                 )
+                         ),
+                         tabItem(tabName = "preds",
+                                 
+                                 # Where the options go
+                                 box(title = "Variable Selection",
+                                     selectInput(inputId = "predictor_variable", label = "Select Variable to Predict",
+                                                 choices = c("Average Duration" = "avg_leng", "Average Distance" = "avg_dist", "Number of Trips" = "num_trips")),
+                                     checkboxGroupInput(inputId = "variable_opts", label = "Select Variable for Model",
+                                                        choices = select_model_options, selected = "Rainfall")#,
+                                     #sliderInput(inputID = "hours", label = "Control for Time of Day?",
+                                     #min = min_year, max = max_year, value = c(0, 23))
+                                 ),
+                                 # Where the prediciton and table will go
+                                 box(title = "Output",
+                                     #plotOutput("prediction"),
+                                     formattableOutput("prediction_table")
+                                 )
+                         ),
+                         tabItem(tabName = "resid",
+                                 box(title = "Residual Plot",
+                                     plotOutput("resid_plot"))
+                                 
+                         ),
+                         tabItem(tabName = "models",
+                                 box(title = "Variable Selection",
+                                     # Prediction Selection
+                                     selectInput(inputId = "predicted_variable", label = "Select Variable to Predict",
+                                                 choices = c("Average Duration" = "avg_leng", "Average Distance" = "avg_dist", "Number of Trips" = "num_trips")),
+                                     # Day of week selection
+                                     selectInput(inputId = "day", label = "Select Day of the Week",
+                                                 choices = list("Sunday","Monday", "Tuesday", "Wednesday","Thursday", "Friday", "Saturday"),
+                                                 selected = "Wednesday"),
+                                     # Enter amount of rainfall
+                                     numericInput(inputId = "rainfall", label = "Select Level of Rainfall (.01 inch)",
+                                                  0, min = 0, max = 100),
+                                     # Enter temp
+                                     numericInput(inputId = "temp", label = "Select Temperature (Degrees Fahrenheit)",
+                                                  60, min = 0, max = 150),
+                                     # Season Selection
+                                     selectInput(inputId = "Season", label = "Select Season:",
+                                                 choices = list("Spring", "Summer", "Autumn", "Winter"),
+                                                 selected = "Autumn")
+                                 ),
+                                 # Where the output goes
+                                 box(formattableOutput("prediction")
+                                 )
+                         )
+  )
+  )
 )
 
 
@@ -160,7 +142,76 @@ server <- function(input, output, session) {
   
   )
   
+  # adjusting hours
+  #trips_filtered <- reactive({
+  #  trips_plus %>% 
+  #    filter(hour >= input$hours, hour <= input$hours)
+  #})
   
+  # making the actual model
+  lm1 <- reactive({lm(reformulate(input$variable_opts,input$predictor_variable), data = trips_plus)})
+  
+  # building initial table for use in the output
+  output_table <- reactive({tidy(lm1()) %>%
+      rename(Predictor = "term") %>%
+      select(1,2,5) %>%
+      slice(-1) %>%
+      mutate(Effect = if_else(estimate > 0, "Positive", "Negative")) %>%
+      mutate(Significance = if_else(p.value < .01, "Very Significant", 
+                                    if_else(p.value < .05, "Significant", 
+                                            if_else(p.value < .1, "Somewhat Significant", "Not Significant")))) %>%
+      select(-2,-3)
+  })
+  # actual output of table
+  output$prediction_table <- renderFormattable({
+    formattable(output_table(), list(
+      Effect = formatter("span",
+                         style = x ~ style(color = ifelse(x == "Negative" , "red", "green")),
+                         x ~ icontext(ifelse(x == "Negative", "arrow-down", "arrow-up"), x)),
+      Significance = formatter(
+        "span",
+        style = x ~ style(color = ifelse(x %in% c("Very Significant","Significant"), "blue", 
+                                         ifelse(x == "Somewhat Significant" , "brown", "black"))))))
+  })
+  
+  output$resid_plot <- renderPlot({
+    ggplot(lm1()) + geom_point(aes(x=.fitted, y=.resid))
+  })
+  # Making the model for use in the prediction
+  prediction <- reactive({
+    vars <- c("Rainfall","DayOfWeek","Season","Temperature")
+    m1 <- lm(reformulate(vars,input$predicted_variable), data = trips_plus)
+    function(valRain = 0, valDay = "Wednesday", valSeas = "Autumn", valTemp = 60) {
+      
+      #Set elements of vect based on inputs 
+      vect = c(1,valRain,0,0,0,0,valTemp,0,0,0,0,0,0,0,0)
+      vect[3]<-if_else(valDay == "Sunday", 1, 0)
+      vect[4]<-if_else(valSeas == "Spring", 1, 0)
+      vect[5]<-if_else(valSeas == "Summer", 1, 0)
+      vect[6]<-if_else(valSeas == "Winter", 1, 0)
+      vect[11]<-if_else(valDay == "Monday", 1, 0)
+      vect[12]<-if_else(valDay == "Tuesday", 1, 0)
+      vect[13]<-if_else(valDay == "Thursday", 1, 0)
+      vect[14]<-if_else(valDay == "Friday", 1, 0)
+      vect[15]<-if_else(valDay == "Saturday", 1, 0)
+      
+      term = c("(Intercept)", "Rainfall","DayOfWeekSunday", "SeasonSpring", "SeasonSummer", "SeasonWinter", "Temperature", "RentalAccessPathkeypad" , "RentalAccessPathkeypad_rfid_card", "RentalAccessPathmobile", "DayOfWeekMonday", "DayOfWeekTuesday", "DayOfWeekThursday", "DayOfWeekFriday", "DayOfWeekSaturday")
+      
+      #Calculate prediction
+      formattable(data_frame(term) %>%
+                    left_join(tidy(m1), by = c("term" = "term")) %>%
+                    select(1,2) %>%
+                    mutate(values = vect) %>%
+                    filter(!is.na(estimate)) %>%
+                    mutate(n1 = estimate*values) %>%
+                    summarise(Prediction = sum(n1)))
+    }
+  })
+  
+  # Calling prediction function, assigning to output
+  output$prediction <- renderFormattable({
+    prediction()(valRain = input$rainfall, valDay = input$day, valSeas = input$Season,valTemp = input$temp)
+  })
   
   
 }

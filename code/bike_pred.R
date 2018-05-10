@@ -46,13 +46,13 @@ distribtion <- inner_join(stations2, temp_dist)
 # Function to filter trips to only include trips taken under 'similar' conditions (weather, season, day of wekk, time)
 filter_trips <- function(time, date, temp) {
   date <- ymd(date)
-  DOW <- if_else(wday(date) %in% c(1,6,7), 1, 0)
+  DOW <- if_else(wday(date) %in% c(1,7), 1, 0)
   Dtseason <- if_else(month(date) %in% c(6, 7, 8), "Summer", if_else(month(date) %in% c(9, 10, 11), "Autumn", if_else(month(date) %in% c(12, 1, 2), "Winter", "Spring")))
   
   new_trips <- full_trips %>% 
     select(StartDate, hour, DayOfWeek, daily_total, Distance_Miles, 
            TAVG, TMAX, TMIN, start_id, end_id, rainfall) %>%
-    mutate(wday_group = if_else(DayOfWeek %in% c(1,6,7), 1, 0), 
+    mutate(wday_group = if_else(DayOfWeek %in% c(1,7), 1, 0), 
            Season = if_else(month(StartDate) %in% c(6, 7, 8), "Summer",
                             if_else(month(StartDate) %in% c(9, 10, 11), "Autumn",
                                     if_else(month(StartDate) %in% c(12, 1, 2), "Winter", "Spring")))) %>%
@@ -112,9 +112,19 @@ make_trip_pred <- function(num_hours, model, tmax, tmin, daily_rain, wd, hour) {
 
 # Combines previous functions into one that given parameters, gives back a total number of predicted trips
 full_predict_trips <- function(hour, date, tmax, tmin, rain, num_hours) {
-  filtered <- filter_trips(hour, ymd(date), ((tmin+tmax)/2))
-  m <- make_model(filtered)
-  predicted_trips <- make_trip_pred(num_hours = num_hours, model = m, tmax = tmax, tmin = tmin, daily_rain = rain, wd = wday(ymd(date)), hour = hour)
+  i <- 0
+  predicted_trips <- 0
+  while(i < num_hours) {
+    filtered <- filter_trips((hour+i), ymd(date), ((tmin+tmax)/2))
+    m <- make_model(filtered)
+    predicted_trips <- (predicted_trips + predict(m, newdata = data.frame(tmax = tmax, 
+                                      tmin = tmin, daily_rain = rain,
+                                      wd = wday(ymd(date)),
+                                      hour = (hour + i))))
+    
+    i <- i + 1
+  }
+  
   
   return(predicted_trips)
 }

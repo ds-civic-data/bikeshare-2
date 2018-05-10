@@ -1,6 +1,8 @@
 library(tidyverse)
 library(lubridate)
 
+# all this script does is add daily temperatures
+
 trips_rain <- read.csv("~/R-stuff/bikeshare-2/data/trips_rain.csv")
 temps <- read.csv("~/R-stuff/bikeshare-2/raw_data/temperature.csv")
 
