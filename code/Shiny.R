@@ -34,7 +34,8 @@ ui <- dashboardPage(
                                                                 sliderInput("hour", "Hour of day (24H time)", 0, 23, 12),
                                                                 dateInput("date", "Date", format = "yyyy-mm-dd", startview = "month", weekstart = 7,
                                                                           language = "en", width = NULL),
-                                                                actionButton("predict1", "Predict")
+                                                                actionButton("predict1", "Predict"),
+                                                                actionButton("current", "Add Current Distribution")
                                           )
                                           )
                                  )
@@ -133,14 +134,24 @@ server <- function(input, output, session) {
                        fillOpacity = .6,
                        color = if_else(pred_data$diff > 0, "green", "red"),
                        popup = paste("Predicted Change in Bikes: ", round(pred_data$diff)))
-    
-    
-    
-    
+  })
+  
+  observeEvent(input$current, {
+    pred_data <- pred_distribution(input$hour, input$date, input$maxtemp, input$mintemp,input$rain, 
+                                   input$predtime)
+    proxy3 <- leafletProxy("predmap") %>%
+      clearMarkers() %>%
+      addCircleMarkers(lng=pred_data$lon, 
+                       lat=pred_data$lat,
+                       radius = if_else(pred_data$aval == 0, 5, 3*sqrt(pred_data$aval) + 2), 
+                       stroke = F,
+                       fillOpacity = .6,
+                       color = if_else(pred_data$aval < , "black", if_else(pred_data$diff > 0, "green", "red")),
+                       popup = paste("Predicted Available Bikes: ", round(pred_data$aval)))
     
   }
-  
   )
+  
   
   # adjusting hours
   #trips_filtered <- reactive({
@@ -210,6 +221,7 @@ server <- function(input, output, session) {
   
   # Calling prediction function, assigning to output
   output$prediction <- renderFormattable({
+    
     prediction()(valRain = input$rainfall, valDay = input$day, valSeas = input$Season,valTemp = input$temp)
   })
   

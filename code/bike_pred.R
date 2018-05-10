@@ -6,23 +6,41 @@ raw_counts <- read_csv("~/R-stuff/bikeshare-2/data/raw_trips.csv")
 full_trips <- read_csv("~/R-stuff/bikeshare-2/data/trips_temp_rain.csv") %>%
   mutate(DayOfWeek = format(factor(wday(StartDate)), format = "%a")) 
 
-json_dist <- fromJSON("http://biketownpdx.socialbicycles.com/opendata/station_status.json")
-stations <- read_csv("~/R-stuff/bikeshare-2/data/stations.csv") 
+
+stations3 <- read_csv("~/R-stuff/bikeshare-2/data/stations.csv") 
 
 # Editing Stations to be joinable
-stations$StartHub <- as.character(stations$StartHub)
-stations$EndHub <- as.character(stations$EndHub)
+stations3$StartHub <- as.character(stations3$StartHub)
+stations3$EndHub <- as.character(stations3$EndHub)
 
-stations[13, 5] <- "SE Taylor at Chavez"
-stations[13, 6] <- "SE Taylor at Chavez"
-stations[62, 5] <- "NW 22nd at LoveJoy"
-stations[62, 6] <- "NW 22nd at LoveJoy"
+stations3[13, 5] <- "SE Taylor at Chavez"
+stations3[13, 6] <- "SE Taylor at Chavez"
+stations3[62, 5] <- "NW 22nd at LoveJoy"
+stations3[62, 6] <- "NW 22nd at LoveJoy"
 
-station_end <- stations %>% 
+station_end <- stations3 %>% 
   select(EndHub, end_id)
 
-station_start <- stations %>% 
+station_start <- stations3 %>% 
   select(StartHub, start_id)
+
+get_current <- function() {
+  json_dist <- fromJSON("http://biketownpdx.socialbicycles.com/opendata/station_status.json")
+  # Putting current distribution into data frame
+  temp_dist <- data_frame(json_dist[["data"]][["stations"]][["station_id"]], json_dist[["data"]][["stations"]][["num_bikes_available"]], json_dist[["data"]][["stations"]][["num_docks_available"]])
+  names(temp_dist) <- c("id", "aval", "empty")
+  
+  stations2 <- stations3 %>%
+    select(start_id, lon, lat, StartHub)
+  
+  names(stations2) <- c("id", "lon", "lat", "name")
+  
+  distribtion <- inner_join(stations2, temp_dist)
+  return(distribtion)
+}
+
+
+
 
 full_trips <- full_join(station_end, full_trips) %>%
   full_join(station_start) %>%
@@ -30,17 +48,8 @@ full_trips <- full_join(station_end, full_trips) %>%
   mutate(start_id = if_else(is.na(start_id), "free", start_id), 
          end_id = if_else(is.na(end_id), "free", end_id))
 
-# Putting current distribution into data frame
-temp_dist <- data_frame(json_dist[["data"]][["stations"]][["station_id"]], json_dist[["data"]][["stations"]][["num_bikes_available"]], json_dist[["data"]][["stations"]][["num_docks_available"]])
 
-names(temp_dist) <- c("id", "aval", "empty")
 
-stations2 <- stations %>%
-  select(start_id, lon, lat, StartHub)
-
-names(stations2) <- c("id", "lon", "lat", "name")
-
-distribtion <- inner_join(stations2, temp_dist)
 
 
 # Function to filter trips to only include trips taken under 'similar' conditions (weather, season, day of wekk, time)
@@ -150,8 +159,8 @@ pred_distribution <- function(hour, date, tmax, tmin, rain, num_hours) {
     select(start_id, diff)
   
   names(trips) <- c("id", "diff")
-  
-  final <- inner_join(trips, distribtion) %>%
+  current <- get_current()
+  final <- inner_join(trips, current) %>%
     mutate(predicted = aval + diff)
   return(final)
 }
