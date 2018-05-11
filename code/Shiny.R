@@ -15,7 +15,7 @@ ui <- dashboardPage(
     menuItem("Explore", tabName = "explore"),
     menuItem("Predict", tabName = "predict"),
     menuItem("Models", tabName = "models", icon = icon("bar-chart-o")),
-    menuItem("Predictions", tabName = "preds", icon = icon("th")),
+    menuItem("Estimate", tabName = "preds", icon = icon("th")),
     menuItem("Residual Plot", tabName = "resid", icon = icon("dashboard")))),
   dashboardBody(tabItems(tabItem(tabName = "explore", 
                                  fluidRow(column(width = 9,
@@ -136,6 +136,7 @@ server <- function(input, output, session) {
                        popup = paste("Predicted Change in Bikes: ", round(pred_data$diff)))
   })
   
+ 
   observeEvent(input$current, {
     pred_data <- pred_distribution(input$hour, input$date, input$maxtemp, input$mintemp,input$rain, 
                                    input$predtime)
@@ -146,12 +147,10 @@ server <- function(input, output, session) {
                        radius = if_else(pred_data$aval == 0, 5, 3*sqrt(pred_data$aval) + 2), 
                        stroke = F,
                        fillOpacity = .6,
-                       color = if_else(pred_data$aval < , "black", if_else(pred_data$diff > 0, "green", "red")),
+                       color = if_else(pred_data$aval < 2, "black", if_else(pred_data$diff > 0, "green", "red")),
                        popup = paste("Predicted Available Bikes: ", round(pred_data$aval)))
     
-  }
-  )
-  
+  })
   
   # adjusting hours
   #trips_filtered <- reactive({
